@@ -1,0 +1,237 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>SAC Robotic Arm Pick-and-Place Simulator</title>
+<style>
+:root{--bg:#0e1319;--p:#161d26;--ln:#2b3745;--tx:#d7e0ea;--mu:#8497ab;--ac:#35a7ff;--ok:#3ddc84;--bad:#ff5d5d;--wn:#ffb02e;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:8px 12px;background:#0a0f14;border-bottom:1px solid var(--ln)}
+header b{font-size:15px}.tag{background:#3a2a05;color:var(--wn);border:1px solid #6b4b00;padding:2px 8px;border-radius:10px;font-size:11px}
+.note{padding:5px 12px;font-size:11px;color:var(--mu);border-bottom:1px solid var(--ln)}
+main{display:grid;grid-template-columns:230px minmax(0,1fr) 300px;gap:8px;padding:8px}
+.pn{background:var(--p);border:1px solid var(--ln);border-radius:6px;padding:10px}
+.pn h3{margin:10px 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ac);border-bottom:1px solid var(--ln);padding-bottom:3px}.pn h3:first-child{margin-top:0}
+.row{display:flex;gap:6px;margin-bottom:6px}.row>*{flex:1}
+.b{background:#243140;color:var(--tx);border:1px solid #3a4a5e;border-radius:4px;padding:7px 6px;font-weight:600;cursor:pointer;font-size:12px;width:100%}
+.b:hover{filter:brightness(1.25)}.g{background:#14502e;border-color:#1f8a50}.y{background:#5a4210;border-color:#a37a1a}.r{background:#5a1a1a;border-color:#a33}.w{margin-bottom:6px;background:#17405e;border-color:#2a74a8}
+label{display:block;margin:4px 0;color:var(--mu);font-size:12px}select,input[type=range]{width:100%}select{background:#0e1319;color:var(--tx);border:1px solid var(--ln);padding:4px;border-radius:4px}
+.bar{height:8px;background:#0e1319;border:1px solid var(--ln);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#1f8a50,#35a7ff)}
+canvas{display:block}#scene{width:100%;height:auto;border-radius:6px;border:1px solid var(--ln);background:#111}
+#strip{display:flex;flex-wrap:wrap;gap:12px;padding:6px 4px;font:12px ui-monospace,Consolas,monospace;color:var(--mu)}#strip b{color:var(--tx)}
+table{width:100%;border-collapse:collapse;font:11px ui-monospace,Consolas,monospace}td,th{padding:2px 3px;text-align:right;border-bottom:1px solid #222d39}td:first-child,th:first-child{text-align:left}th{color:var(--mu);font-weight:500}
+.ab{height:6px;background:#0e1319;position:relative}.ab i{position:absolute;top:0;height:100%;background:var(--ac)}
+.kp{display:grid;grid-template-columns:1fr 1fr;gap:5px}.kp div{background:#0e1319;border:1px solid var(--ln);border-radius:4px;padding:4px 6px}.kp small{display:block;color:var(--mu);font-size:10px}.kp b{font:600 15px ui-monospace,Consolas,monospace}
+.mono{font:11px ui-monospace,Consolas,monospace}
+#B{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:0 8px 8px}#B canvas{width:100%;height:auto;border:1px solid var(--ln)}
+#log{height:100%;min-height:200px;max-height:240px;overflow:auto;font:11px ui-monospace,Consolas,monospace;background:#0a0f14;padding:6px}#log div{border-bottom:1px solid #18212b}#log .ok{color:var(--ok)}#log .e{color:var(--bad)}#log span{color:var(--mu)}
+#modal{position:fixed;inset:0;background:#000a;overflow:auto;padding:16px;z-index:9}#modal>div{max-width:780px;margin:0 auto;background:var(--p);border:1px solid var(--ln);border-radius:8px;padding:16px}
+#modal h4{color:var(--ac);margin:14px 0 4px}#modal p,#modal li{color:var(--tx)}#modal svg{width:100%;background:#0e1319;border-radius:6px}
+@media(max-width:1050px){main{grid-template-columns:1fr}#B{grid-template-columns:1fr 1fr}}@media(max-width:640px){#B{grid-template-columns:1fr}}
+</style></head><body>
+<header><b>SAC Robotic Arm · Pick-and-Place Simulator</b><span class="tag">SAC-INSPIRED EDUCATIONAL DEMO · not MATLAB/Simulink output</span><span class="mono" id="chip"></span><span style="flex:1"></span><button class="b" style="width:auto" id="bG">Guide &amp; Explanation</button><button class="b" style="width:auto" id="bRp">End-of-Simulation Report</button></header>
+<div class="note">Honesty note: the arm is driven by a scripted inverse-kinematics policy whose precision improves with a “policy competence” value tied to training episodes. Episode outcomes, rewards, times and counts are computed from this simulation. Critic loss, Q-values and the α schedule are illustrative parametric curves, not outputs of trained neural networks.</div>
+<main>
+<aside class="pn"><h3>Simulation controls</h3>
+<div class="row"><button class="b g" id="bS">▶ START</button><button class="b y" id="bP">❚❚ PAUSE</button></div>
+<div class="row"><button class="b r" id="bR">↺ RESET</button><button class="b" id="bN">⏭ NEXT EPISODE</button></div>
+<button class="b w" id="bF">⚡ Fast-train 25 episodes</button>
+<label>Simulation speed <b id="spv">1.0×</b></label><input type="range" id="sp" min="0.25" max="5" step="0.25" value="1">
+<h3>Training controls</h3>
+<label><input type="checkbox" id="tr" checked> Training mode ON</label>
+<label>Load policy checkpoint</label><select id="ck"><option value="">Live (current)</option><option value="0">Initial policy (0 eps)</option><option value="30">Intermediate (30 eps)</option><option value="150">Converged (150 eps)</option></select>
+<label>Training progress <b id="tpv"></b></label><div class="bar"><i id="tp"></i></div>
+<h3>Object spawn</h3>
+<div class="row"><select id="sc"><option value="">Random colour</option><option>red</option><option>green</option><option>blue</option></select><button class="b" id="bO">+ Spawn</button></div>
+<label><input type="checkbox" id="au" checked> Auto-spawn objects</label>
+<h3>Display</h3>
+<label><input type="checkbox" id="ctr" checked> End-effector trajectory</label><label><input type="checkbox" id="cws" checked> Workspace boundary</label>
+<h3>Entropy α (exploration)</h3>
+<label><input type="checkbox" id="aa" checked> Auto-tune α</label><input type="range" id="al" min="0.02" max="0.8" step="0.02" value="0.3">
+<canvas id="ent" width="220" height="90" style="width:100%;margin-top:4px;background:#0e1319;border-radius:4px"></canvas>
+<div class="mono" style="color:var(--mu)">High α → wide action distribution (explore). Low α → narrow (exploit).</div>
+</aside>
+<section><canvas id="scene" width="900" height="470"></canvas><div id="strip"></div></section>
+<aside class="pn"><h3>Joint information &amp; action</h3>
+<table><thead><tr><th>Joint</th><th>q (°)</th><th>q̇ (°/s)</th><th>a</th></tr></thead><tbody id="jt"></tbody></table>
+<h3>State s</h3><div class="mono" id="st"></div>
+<h3>SAC algorithm</h3><div class="mono" id="sac"></div>
+<h3>Performance metrics</h3><div class="kp" id="kp"></div>
+<h3>Policy comparison</h3><div class="mono" id="cmp"></div></aside>
+</main>
+<section id="B"><canvas id="c1" width="360" height="200"></canvas><canvas id="c2" width="360" height="200"></canvas><canvas id="c3" width="360" height="200"></canvas><canvas id="c4" width="360" height="200"></canvas><canvas id="c5" width="360" height="200"></canvas><div class="pn" style="padding:4px"><div class="mono" style="color:var(--ac);padding:2px 6px">EVENT LOG</div><div id="log"></div></div></section>
+<div id="modal" hidden><div><button class="b" style="width:auto;float:right" onclick="modal.hidden=true">Close ✕</button><div id="mb"></div></div></div>
+<script>
+const $=id=>document.getElementById(id),PI=Math.PI,cl=(v,a,b)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t,ss=t=>t*t*(3-2*t),randn=()=>{let u=0;while(!u)u=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*PI*Math.random())};
+const L1=1.1,L2=1.0,L3=0.4,ZS=0.7,PX=150,OX=450,GY=430,OBJ=0.11,CZ=0.3,BT=0.4,BARX=0.45,BARH=0.55,DT=1/30,BUFMAX=20000;
+const COL={red:'#e5484d',green:'#30a46c',blue:'#3e63dd'},CN=['red','green','blue'],BINS={red:0.95,green:1.5,blue:2.05};
+const sx=x=>OX+x*PX,sy=z=>GY-z*PX,sc=$('scene').getContext('2d'),modal=$('modal');
+let S,H,logD=true,chD=true;
+const ma=(a,k=10)=>a.map((_,i)=>{const s=a.slice(Math.max(0,i-k+1),i+1);return s.reduce((x,y)=>x+y,0)/s.length});
+const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+function skill(){return 0.10+0.83*(1-Math.exp(-S.trainEps/35))}
+function alpha(){return $('aa').checked?0.04+0.6*Math.exp(-S.trainEps/45):+$('al').value}
+function lg(m,t){S.log.unshift({t:`[Ep ${S.ep} | ${S.epT.toFixed(1)}s]`,m,k:t||''});if(S.log.length>120)S.log.pop();logD=true}
+function init(){
+ S={t:0,run:false,speed:+$('sp').value,trainEps:0,training:$('tr').checked,ep:0,ph:'idle',objs:[],nid:1,sq:[],bin:{red:0,green:0,blue:0},tcp:{r:1,th:PI,z:1.4},g:1,q:[0,0,0,0],qd:[0,0,0,0],act:[0,0,0,0,0],cur:null,pl:null,wi:0,wt:0,from:null,epR:0,epT:0,stepR:0,dPrev:null,gk:'',buf:0,flash:0,belt:0,Q:[0,0],trail:[],log:[],fail:false,colDone:false,endPending:false,jumped:false,sc:0};
+ H={rew:[],succ:[],time:[],l1:[],l2:[],cum:[],ok:0,bad:0,col:0,fails:{collision:0,drop:0,grasp:0,miss:0},ll:[10,10.6]};
+ [-1.9,-2.4,-2.9].forEach(x=>spawn(x));kin();kin();S.qd=[0,0,0,0];
+ lg('Environment initialised. Press START.');logD=chD=true}
+function spawn(x,c){S.objs.push({id:S.nid++,c:c||CN[Math.random()*3|0],x,z:CZ+OBJ,st:'belt',stop:-1.55-Math.random()*0.45,vx:0,vz:0,t:0,n:0,inb:false})}
+const beltObjs=()=>S.objs.filter(o=>o.st==='belt').sort((a,b)=>b.x-a.x);
+const entryClear=()=>beltObjs().every(o=>o.x>-2.55);
+function kin(){
+ const w=S.pl&&S.ph==='run'?S.pl.w[S.wi]:null,fine=w&&/grasp|descend|lower|release/.test(w.t),amp=S.ph==='run'?0.05*alpha()/0.6*(fine?0.2:1):0;
+ const e={r:S.tcp.r+amp*Math.sin(S.t*2.9+1),th:S.tcp.th,z:S.tcp.z+amp*Math.sin(S.t*2.2)};S.e=e;
+ const wz=e.z+L3-ZS,d=cl(Math.hypot(e.r,wz),0.3,2.08),an=Math.atan2(wz,e.r),q3=-Math.acos(cl((d*d-L1*L1-L2*L2)/(2*L1*L2),-1,1)),q2=an-Math.atan2(L2*Math.sin(q3),L1+L2*Math.cos(q3)),q4=-PI/2-(q2+q3);
+ const ex=L1*Math.cos(q2),ez=ZS+L1*Math.sin(q2),wx=ex+L2*Math.cos(q2+q3),wzz=ez+L2*Math.sin(q2+q3);
+ S.K={el:[ex,ez],wr:[wx,wzz],tc:[wx,wzz-L3]};const q=[e.th,q2,q3,q4],mv=[1.5,1.2,1.5,2];
+ for(let i=0;i<4;i++){S.qd[i]=lerp(S.qd[i],(q[i]-S.q[i])/DT,0.3);S.act[i]=cl(S.qd[i]/mv[i],-1,1)}
+ S.q=q;S.act[4]=w?cl((w.g-S.g)*3,-1,1):0}
+function plan(o){
+ const s=skill(),q=Math.pow(1-s,1.5),K=(1.45-0.5*s)*(0.9+0.2*Math.random()),rc=-o.x,ex=randn()*0.055*q/0.2*0.2,h=cl(0.55+0.55*s+randn()*0.15*(1-s),0.5,1.1),dx=randn()*0.15*q,bx=BINS[o.c],zc=CZ+OBJ,zb=BT+OBJ+0.05;
+ const W=[[1,PI,1.4,1,.7,'detect',1],[rc+ex,PI,zc+.4,1,1.4,'reach'],[rc+ex,PI,zc,1,.9,'descend'],[rc+ex,PI,zc,0,.6,'grasp'],[rc+ex,PI,h,0,.9,'lift'],[1.3,PI,h,0,.7,'retract'],[1.3,0,h,0,1.6,'transport'],[bx+dx,0,zb+.25,0,.9,'above'],[bx+dx,0,zb,0,.7,'lower'],[bx+dx,0,zb,1,.5,'release'],[bx+dx,0,.95,1,.7,'raise'],[1,PI,1.4,1,1.8,'home']];
+ return{w:W.map(a=>({r:a[0],th:a[1],z:a[2],g:a[3],d:a[4]*K,t:a[5]})),drop:Math.random()<0.3*q,gm:Math.abs(ex)>0.06,ex}}
+function ann(w){const m={reach:'Reaching object',descend:'Aligning gripper over object (offset '+(S.pl.ex*100).toFixed(1)+' cm)',grasp:'Closing gripper',lift:'Lifting object',transport:'Moving towards target ('+S.cur.c+' bin)',lower:'Lowering into bin',release:'Releasing object',home:'Returning to home position'}[w.t];m&&lg(m)}
+function startEp(o){S.ep++;S.cur=o;S.pl=plan(o);S.wi=0;S.wt=0;S.from={...S.tcp,g:S.g};S.epR=0;S.epT=0;S.trail=[];S.ph='run';S.dPrev=null;S.fail=false;S.colDone=false;S.gk='';
+ lg('Episode '+S.ep+' started');lg('Object detected: '+o.c+' cube, x = '+o.x.toFixed(2)+' m, target = '+o.c+' bin')}
+function jump(){S.wi=S.pl.w.length-1;S.wt=0;S.from={...S.tcp,g:S.g};S.jumped=true;ann(S.pl.w[S.wi])}
+function release(o){const d=o.x-BINS[o.c];o.st='falling';o.vx=o.vz=0;if(Math.abs(d)<=0.07){o.inb=true;lg('Object placed successfully ('+o.c+' bin)','ok');return 50}
+ o.vx=Math.sign(d||1)*0.55;S.fail=true;H.fails.miss++;lg('Missed the bin – object fell outside','e');return -10}
+function beltStep(){const b=beltObjs();let mv=false;b.forEach((o,i)=>{const lim=i?Math.min(o.stop,b[i-1].x-0.4):o.stop;if(o.x<lim-0.002){o.x=Math.min(lim,o.x+0.5*DT);mv=true}});if(mv)S.belt+=0.5*DT;
+ if(entryClear()){if(S.sq.length)spawn(-3.05,S.sq.shift());else if($('au').checked&&b.length<4)spawn(-3.05)}}
+function objStep(){S.objs.forEach(o=>{if(o.st==='falling'){o.vz-=9.8*DT;o.z+=o.vz*DT;o.x+=o.vx*DT;const fl=o.inb?0.08+OBJ+(S.bin[o.c]%3)*0.05:(o.x<-1.15&&o.x>-3.1?CZ+OBJ:OBJ);
+  if(o.z<=fl){o.z=fl;o.vz=0;if(o.inb){S.bin[o.c]++;o.n=S.bin[o.c];o.st='bin';o.x=BINS[o.c]+((o.n*37)%5-2)*0.03}else if(!o.vx||fl===OBJ){o.st='floor';o.t=0}}}
+ else if(o.st==='floor'){o.t+=DT;if(o.t>2.5)o.st='gone'}});
+ S.objs=S.objs.filter(o=>o.st!=='gone'&&!(o.st==='bin'&&o.n<S.bin[o.c]-5))}
+function step(){
+ S.t+=DT;S.flash=Math.max(0,S.flash-DT);beltStep();objStep();
+ if(S.ph==='idle'){const f=beltObjs()[0];if(f&&f.x>=f.stop-0.005)startEp(f);kin();S.stepR=0;return}
+ const P=S.pl,w=P.w[S.wi],o=S.cur;S.wt+=DT;S.epT+=DT;const u=cl(S.wt/w.d,0,1),e=ss(u),f=S.from;
+ S.tcp={r:lerp(f.r,w.r,e),th:lerp(f.th,w.th,e),z:lerp(f.z,w.z,e)};S.g=lerp(f.g,w.g,e);kin();
+ const T=S.K.tc,th=S.tcp.th,p=[T[0]*Math.cos(th),T[0]*Math.sin(th),T[1]];
+ if(o.st==='held'){o.x=p[0];o.z=T[1]}
+ let r=-0.005-0.01*S.act.reduce((a,b)=>a+b*b,0);
+ const gk=o.st+S.fail;if(gk!==S.gk){S.gk=gk;S.dPrev=null}
+ const G=o.st==='belt'&&!S.fail?[o.x,0,o.z]:o.st==='held'?[BINS[o.c],0,BT+OBJ+0.05]:[-1,0,1.4],d=Math.hypot(p[0]-G[0],p[1]-G[1],p[2]-G[2]);
+ if(S.dPrev!=null)r+=3*(S.dPrev-d);S.dPrev=d;
+ S.trail.push([sx(p[0]),sy(p[2])]);if(S.trail.length>1500)S.trail.shift();
+ if(w.t==='transport'&&u>0.45&&P.drop&&o.st==='held'){o.st='falling';o.vx=o.vz=0;r-=30;S.fail=true;H.fails.drop++;lg('Object dropped during transport!','e');jump()}
+ else if(w.t==='release'&&u>0.4&&o.st==='held')r+=release(o);
+ if(!S.colDone&&!S.fail){const held=o.st==='held',bot=held?T[1]-OBJ:T[1]-0.12;
+  if(bot<BARH&&Math.abs(p[0]-BARX)<(held?OBJ:0.07)+0.03){S.colDone=S.fail=true;H.col++;H.fails.collision++;S.flash=1.5;r-=50;lg('COLLISION with safety barrier','e');if(held){o.st='falling';o.vx=0.3;o.vz=0}jump()}}
+ if(S.jumped)S.jumped=false;
+ else if(S.wt>=w.d){
+  if(w.t==='grasp'){if(P.gm){lg('Grasp failed – gripper misaligned','e');r-=20;o.st='falling';o.vx=0.7;o.vz=0;S.fail=true;H.fails.grasp++;jump();S.jumped=false}
+   else{o.st='held';r+=10;lg('Gripper closed');lg('Object picked successfully','ok');S.wi++;S.wt=0;S.from={...S.tcp,g:S.g};ann(P.w[S.wi])}}
+  else if(w.t==='home')S.endPending=true;
+  else{S.wi++;S.wt=0;S.from={...S.tcp,g:S.g};ann(P.w[S.wi])}}
+ S.stepR=r;S.epR+=r;if(S.sc++%3==0)S.buf=Math.min(BUFMAX,S.buf+1);
+ const sk=skill(),rem=(S.fail?5:65)*(1-(S.wi+u)/P.w.length);S.Q=[rem*(0.35+0.65*sk)+(1-sk)*8*Math.sin(S.t*1.7),rem*(0.35+0.65*sk)+(1-sk)*8*Math.sin(S.t*1.3+2)];
+ if(S.endPending){S.endPending=false;endEp()}}
+function endEp(){const o=S.cur,ok=!S.fail&&o.inb&&o.st==='bin';
+ H.rew.push(S.epR);H.time.push(S.epT);H.succ.push(ok?1:0);ok?H.ok++:H.bad++;H.cum.push(H.ok);
+ if(S.training){S.trainEps++;const l=0.35+14*Math.exp(-S.trainEps/22)*(0.7+0.6*Math.random());H.ll=[l,l*(1+0.12*randn())]}
+ H.l1.push(H.ll[0]);H.l2.push(Math.max(0.05,H.ll[1]));
+ lg('Episode '+S.ep+' completed: '+(ok?'SUCCESS':'FAILED')+' | reward '+S.epR.toFixed(1)+' | '+S.epT.toFixed(1)+' s',ok?'ok':'e');
+ S.ph='idle';S.cur=null;chD=true}
+function skip(){let n=0;while(S.ph==='idle'&&n++<3000)step();n=0;while(S.ph==='run'&&n++<4000)step();chD=true}
+/* ---------- drawing ---------- */
+const px=(r,z)=>[sx(r*Math.cos(S.tcp.th)),sy(z)];
+function cube(c,o,a){const s=OBJ*2*PX,x=sx(o.x)-s/2,y=sy(o.z)-s/2,d=7;c.globalAlpha=a;c.fillStyle=COL[o.c];c.fillRect(x,y,s,s);c.fillStyle='#ffffff55';c.beginPath();c.moveTo(x,y);c.lineTo(x+d,y-d);c.lineTo(x+s+d,y-d);c.lineTo(x+s,y);c.fill();c.fillStyle='#00000055';c.beginPath();c.moveTo(x+s,y);c.lineTo(x+s+d,y-d);c.lineTo(x+s+d,y+s-d);c.lineTo(x+s,y+s);c.fill();c.strokeStyle='#0008';c.strokeRect(x,y,s,s);c.globalAlpha=1}
+function link(c,a,b,w,col){const sg=(dy)=>{c.beginPath();c.moveTo(a[0],a[1]+dy);c.lineTo(b[0],b[1]+dy);c.stroke()};c.lineCap='round';c.strokeStyle='#0a0e13';c.lineWidth=w+4;sg(0);c.strokeStyle=col;c.lineWidth=w;sg(0);c.strokeStyle='#ffffff55';c.lineWidth=w*0.25;sg(-w*0.22)}
+function joint(c,p,r,t){c.fillStyle='#3b4858';c.strokeStyle='#9bb0c4';c.lineWidth=2;c.beginPath();c.arc(p[0],p[1],r,0,7);c.fill();c.stroke();c.fillStyle='#1b232d';c.beginPath();c.arc(p[0],p[1],r*0.4,0,7);c.fill();c.fillStyle='#9bb0c4';c.font='10px sans-serif';c.fillText(t,p[0]+r+3,p[1]-r)}
+function scene(){
+ const c=sc,th=S.tcp.th,K=S.K;c.clearRect(0,0,900,470);
+ let g=c.createLinearGradient(0,0,0,GY);g.addColorStop(0,'#16202b');g.addColorStop(1,'#2a3745');c.fillStyle=g;c.fillRect(0,0,900,GY);
+ c.strokeStyle='#ffffff10';c.lineWidth=1;for(let x=0;x<900;x+=100){c.beginPath();c.moveTo(x,0);c.lineTo(x,GY);c.stroke()}
+ c.fillStyle='#0b1118';[60,330,600].forEach(x=>c.fillRect(x,40,160,60));c.fillStyle='#2b3541';c.fillRect(0,GY,900,40);c.fillStyle='#d9a400';c.fillRect(0,GY,900,3);
+ if($('cws').checked){c.save();c.beginPath();c.rect(0,0,900,GY);c.clip();c.setLineDash([6,5]);c.strokeStyle='#ffb02e99';c.beginPath();c.arc(OX,sy(ZS),(L1+L2)*PX,0,7);c.stroke();c.setLineDash([]);c.fillStyle='#ffb02ecc';c.font='10px sans-serif';c.fillText('WORKSPACE BOUNDARY (reach 2.1 m)',OX+60,sy(ZS)-(L1+L2)*PX+14);c.restore()}
+ /* bins back */
+ CN.forEach(n=>{const b=BINS[n],x0=sx(b-0.18),w=0.36*PX;c.fillStyle='#10161d';c.fillRect(x0,sy(BT),w,GY-sy(BT));c.setLineDash([4,3]);c.strokeStyle=COL[n];c.strokeRect(x0,sy(BT+0.45),w,0.45*PX);c.setLineDash([]);c.fillStyle=COL[n];c.font='9px sans-serif';c.fillText('PLACE ZONE',x0+6,sy(BT+0.45)-3)});
+ /* barrier */
+ const bx=sx(0.42),bw=0.06*PX;c.fillStyle=S.flash>0&&(S.flash*8|0)%2?'#ff2d2d':'#e8b800';c.fillRect(bx,sy(BARH),bw,BARH*PX);c.fillStyle='#111';for(let y=sy(BARH);y<GY;y+=12){c.beginPath();c.moveTo(bx,y);c.lineTo(bx+bw,y+6);c.lineTo(bx+bw,y+10);c.lineTo(bx,y+4);c.fill()}c.fillStyle='#e8b800';c.font='9px sans-serif';c.fillText('OBSTACLE',bx-12,sy(BARH)-4);
+ /* conveyor */
+ c.fillStyle='#394655';c.fillRect(0,385,sx(-1.15),22);c.fillStyle='#1d252e';c.fillRect(0,385,sx(-1.15),6);c.strokeStyle='#5d6e80';c.lineWidth=2;for(let x=((S.belt*PX)%24)-24;x<sx(-1.15);x+=24){c.beginPath();c.moveTo(x,391);c.lineTo(x,407);c.stroke()}
+ c.fillStyle='#222b35';[40,140,240].forEach(x=>c.fillRect(x,407,10,GY-407));c.fillStyle='#8497ab';c.beginPath();c.arc(sx(-1.15),396,11,0,7);c.fill();c.fillStyle='#1d252e';c.beginPath();c.arc(sx(-1.15),396,5,0,7);c.fill();c.fillStyle='#9bb0c4';c.font='10px sans-serif';c.fillText('CONVEYOR BELT →',10,425);
+ c.setLineDash([5,4]);c.strokeStyle='#3ddc84';c.lineWidth=1.5;c.strokeRect(sx(-2.1),sy(0.72),0.6*PX,sy(CZ)-sy(0.72));c.setLineDash([]);c.fillStyle='#3ddc84';c.fillText('PICK ZONE',sx(-2.1)+4,sy(0.72)+11);
+ c.fillStyle='#4a5868';c.fillRect(sx(-1.8)-14,250,28,14);c.fillStyle='#35a7ff';c.beginPath();c.arc(sx(-1.8),268,4,0,7);c.fill();c.strokeStyle='#35a7ff66';c.setLineDash([2,3]);c.beginPath();c.moveTo(sx(-1.8),270);c.lineTo(sx(-2.1),sy(0.72));c.moveTo(sx(-1.8),270);c.lineTo(sx(-1.5),sy(0.72));c.stroke();c.setLineDash([]);c.fillStyle='#9bb0c4';c.fillText('VISION SENSOR',sx(-1.8)-36,246);
+ /* robot */
+ let gp=c.createLinearGradient(sx(-.2),0,sx(.2),0);gp.addColorStop(0,'#4a5868');gp.addColorStop(.5,'#8497ab');gp.addColorStop(1,'#3a4655');c.fillStyle=gp;c.fillRect(sx(-.2),sy(.55),0.4*PX,GY-sy(.55));c.fillStyle='#2e3947';c.fillRect(sx(-.28),sy(.1),0.56*PX,0.1*PX);
+ c.fillStyle='#d8dde3';c.fillRect(sx(-.17),sy(.78),0.34*PX,0.26*PX);c.fillStyle='#ff7a1a';c.beginPath();c.arc(sx(0)+Math.cos(th)*10,sy(ZS)+18,4,0,7);c.fill();
+ const SH=[sx(0),sy(ZS)],EL=px(K.el[0],K.el[1]),WR=px(K.wr[0],K.wr[1]),TC=px(K.tc[0],K.tc[1]);
+ link(c,SH,EL,24,'#f26b1d');link(c,EL,WR,19,'#ff8a3d');link(c,WR,[TC[0],TC[1]-20],9,'#9aa7b5');joint(c,SH,14,'J2');joint(c,EL,11,'J3');joint(c,WR,8,'J4');c.fillStyle='#9bb0c4';c.font='10px sans-serif';c.fillText('J1 base rotation',sx(-.2),sy(.45));
+ S.objs.forEach(o=>cube(c,o,o.st==='floor'?cl(1-(o.t-1.5),0,1):1));
+ const held=S.cur&&S.cur.st==='held',gap=((held?OBJ:0.03)+0.14*S.g)*PX;c.fillStyle='#cfd8e3';c.fillRect(TC[0]-gap-5,TC[1]-18,2*gap+10,5);c.fillRect(TC[0]-gap-5,TC[1]-14,5,28);c.fillRect(TC[0]+gap,TC[1]-14,5,28);
+ CN.forEach(n=>{const b=BINS[n],x0=sx(b-0.18),w=0.36*PX;c.fillStyle=COL[n];c.fillRect(x0,sy(0.25),w,GY-sy(0.25));c.fillStyle='#00000040';c.fillRect(x0,sy(0.25),w,4);c.fillStyle='#fff';c.font='bold 11px sans-serif';c.fillText(n.toUpperCase()+' BIN ('+S.bin[n]+')',x0+4,sy(0.12))});
+ if($('ctr').checked&&S.trail.length>1){c.strokeStyle='#00e5ffcc';c.lineWidth=1.5;c.setLineDash([3,2]);c.beginPath();S.trail.forEach((q,i)=>i?c.lineTo(q[0],q[1]):c.moveTo(q[0],q[1]));c.stroke();c.setLineDash([])}
+ c.fillStyle='#00e5ff';c.beginPath();c.arc(TC[0],TC[1],3,0,7);c.fill();
+ c.fillStyle='#d7e0ea';c.font='12px ui-monospace,monospace';c.fillText('Episode '+S.ep+'  |  '+(S.ph==='run'?S.pl.w[S.wi].t.toUpperCase():(S.run?'WAITING FOR OBJECT':'READY')),10,20);c.fillText('Reward: '+S.epR.toFixed(1),10,36);
+ if(S.flash>0){c.fillStyle='#d92d2df0';c.fillRect(250,60,300,30);c.fillStyle='#fff';c.font='bold 14px sans-serif';c.fillText('⚠ COLLISION DETECTED – safety barrier',262,80)}
+ /* top view inset */
+ const ix=706,iy=8,ox=ix+98,oy=iy+62;c.fillStyle='#000a';c.fillRect(ix,iy,186,112);c.strokeStyle='#2b3745';c.strokeRect(ix,iy,186,112);c.fillStyle='#8497ab';c.font='9px sans-serif';c.fillText('TOP VIEW (base yaw θ = '+(th*180/PI).toFixed(0)+'°)',ix+6,iy+11);
+ c.fillStyle='#555';c.fillRect(ix+8,oy-7,55,14);c.fillStyle='#e8b800';c.fillRect(ox+0.42*30,oy-9,2,18);CN.forEach(n=>{c.fillStyle=COL[n];c.fillRect(ox+BINS[n]*30-6,oy-6,12,12)});beltObjs().forEach(o=>{c.fillStyle=COL[o.c];c.fillRect(ox+o.x*30-3,oy-3,6,6)});
+ c.strokeStyle='#ff7a1a';c.lineWidth=3;c.beginPath();c.moveTo(ox,oy);c.lineTo(ox+S.e.r*Math.cos(th)*30,oy-S.e.r*Math.sin(th)*30);c.stroke();c.fillStyle='#8497ab';c.beginPath();c.arc(ox,oy,6,0,7);c.fill()}
+/* ---------- charts ---------- */
+function chart(id,title,xl,yl,ser,o={}){
+ const cv=$(id),c=cv.getContext('2d'),W=cv.width,Hh=cv.height,m={l:44,r:8,t:24,b:32},pw=W-m.l-m.r,ph=Hh-m.t-m.b;
+ c.fillStyle='#f0f0f0';c.fillRect(0,0,W,Hh);c.fillStyle='#fff';c.fillRect(m.l,m.t,pw,ph);
+ const n=Math.max(10,...ser.map(s=>s.d.length)),all=ser.flatMap(s=>s.d);let lo=o.min??(all.length?Math.min(...all):0),hi=o.max??(all.length?Math.max(...all):1);if(hi-lo<1e-6){hi=lo+1}const pd=o.min===undefined?(hi-lo)*0.08:0;lo-=pd;hi+=o.max===undefined?pd:0;
+ const X=i=>m.l+i/(n-1||1)*pw,Y=v=>m.t+ph-(v-lo)/(hi-lo)*ph;c.font='9px sans-serif';c.fillStyle='#333';c.strokeStyle='#ddd';c.lineWidth=1;
+ for(let i=0;i<=5;i++){const v=lo+(hi-lo)*i/5,y=Y(v);c.beginPath();c.moveTo(m.l,y);c.lineTo(m.l+pw,y);c.stroke();c.textAlign='right';c.fillText(Math.abs(v)>=100?v.toFixed(0):v.toFixed(1),m.l-4,y+3)}
+ c.textAlign='center';for(let i=0;i<=5;i++){const k=Math.round(1+(n-1)*i/5),x=X(k-1);c.beginPath();c.moveTo(x,m.t);c.lineTo(x,m.t+ph);c.stroke();c.fillText(k,x,m.t+ph+11)}
+ c.save();c.beginPath();c.rect(m.l,m.t,pw,ph);c.clip();ser.forEach(s=>{c.strokeStyle=s.col;c.lineWidth=s.w||1.5;c.beginPath();s.d.forEach((v,i)=>{const x=X(i),y=Y(v);if(o.stairs&&i){c.lineTo(x,Y(s.d[i-1]))}i?c.lineTo(x,y):c.moveTo(x,y)});c.stroke()});c.restore();
+ c.strokeStyle='#333';c.strokeRect(m.l,m.t,pw,ph);c.fillStyle='#111';c.font='bold 11px sans-serif';c.fillText(title,W/2,14);c.font='10px sans-serif';c.fillText(xl,m.l+pw/2,Hh-4);c.save();c.translate(10,m.t+ph/2);c.rotate(-PI/2);c.fillText(yl,0,0);c.restore();
+ c.textAlign='left';ser.forEach((s,i)=>{const y=m.t+10+i*12;c.fillStyle='#fffc';c.fillRect(m.l+pw-118,y-8,116,12);c.strokeStyle=s.col;c.lineWidth=2;c.beginPath();c.moveTo(m.l+pw-114,y-2);c.lineTo(m.l+pw-98,y-2);c.stroke();c.fillStyle='#222';c.font='9px sans-serif';c.fillText(s.n,m.l+pw-94,y+1)})}
+function charts(){
+ const cs=H.succ.map((_,i)=>H.succ.slice(0,i+1).reduce((a,b)=>a+b,0)/(i+1)*100);
+ chart('c1','Episode Reward vs Episode Number','Episode','Reward',[{d:H.rew,col:'#0072BD',n:'Episode reward',w:1},{d:ma(H.rew),col:'#D95319',n:'10-ep moving avg',w:2}]);
+ chart('c2','Success Rate vs Training Episodes','Episode','Success rate (%)',[{d:ma(H.succ).map(v=>v*100),col:'#0072BD',n:'10-ep moving avg'},{d:cs,col:'#D95319',n:'Cumulative'}],{min:0,max:100});
+ chart('c3','Critic Loss vs Training Episodes (illustrative)','Episode','Loss',[{d:H.l1,col:'#0072BD',n:'Critic Q1 loss'},{d:H.l2,col:'#D95319',n:'Critic Q2 loss'}]);
+ chart('c4','Average Task Completion Time','Episode','Time (s)',[{d:H.time,col:'#0072BD',n:'Episode time',w:1},{d:ma(H.time),col:'#D95319',n:'10-ep moving avg',w:2}]);
+ chart('c5','Cumulative Successful Pick-and-Place','Episode','Successful operations',[{d:H.cum,col:'#0072BD',n:'Cumulative successes'}],{min:0,stairs:1})}
+/* ---------- UI ---------- */
+function ui(){
+ const n=H.ok+H.bad,o=S.cur,d=v=>(v*180/PI).toFixed(0),a=S.act,nm=['J1 Base','J2 Shoulder','J3 Elbow','J4 Wrist'],al=alpha(),sk=skill();
+ const bar=v=>`<div class="ab"><i style="width:${Math.abs(v)*50}%;left:${v<0?50-Math.abs(v)*50:50}%"></i></div>`;
+ $('jt').innerHTML=nm.map((t,i)=>`<tr><td>${t}</td><td>${d(S.q[i])}</td><td>${d(S.qd[i])}</td><td>${a[i].toFixed(2)}${bar(a[i])}</td></tr>`).join('')+`<tr><td>Gripper</td><td>${(S.g*100).toFixed(0)}% open</td><td>${S.cur&&S.cur.st==='held'?'HOLDING':S.g<.1?'CLOSED':'OPEN'}</td><td>${a[4].toFixed(2)}${bar(a[4])}</td></tr>`;
+ const T=S.K.tc,th=S.tcp.th;
+ $('st').innerHTML=`Joint angles q: [${S.q.map(d).join(', ')}]°<br>Joint vel q̇: [${S.qd.map(d).join(', ')}]°/s<br>Object pos: ${o?`(${o.x.toFixed(2)}, ${o.z.toFixed(2)}) m`:'–'}<br>Target bin x: ${o?BINS[o.c].toFixed(2)+' m ('+o.c+')':'–'}<br>End-effector: (${(T[0]*Math.cos(th)).toFixed(2)}, ${(T[0]*Math.sin(th)).toFixed(2)}, ${T[1].toFixed(2)}) m<br>Gripper state: ${S.g.toFixed(2)}<br>Action a: Δq cmds + gripper (see table)<br>Step reward: <b>${S.stepR.toFixed(3)}</b> · Episode reward: <b>${S.epR.toFixed(1)}</b>`;
+ const mq=Math.min(S.Q[0],S.Q[1]);
+ $('sac').innerHTML=`Actor π(a|s): ${S.ph==='run'?'active':'idle'}, σ≈${(0.05+al*0.5).toFixed(2)}<br>Critic Q1: <b>${S.Q[0].toFixed(1)}</b> · Q2: <b>${S.Q[1].toFixed(1)}</b><br>min(Q1,Q2): ${mq.toFixed(1)}<br>Temperature α: <b>${al.toFixed(3)}</b><br>Target nets τ = 0.005 (soft update)<br>Policy competence: ${(sk*100).toFixed(0)}%<br>Replay buffer: ${S.buf}/${BUFMAX}<div class="bar"><i style="width:${S.buf/BUFMAX*100}%"></i></div>`;
+ const kp=[['Total episodes',n],['Successful',H.ok],['Failed',H.bad],['Success %',n?(H.ok/n*100).toFixed(1)+'%':'–'],['Avg reward',n?avg(H.rew).toFixed(1):'–'],['Avg time (s)',n?avg(H.time).toFixed(1):'–'],['Collisions',H.col],['Replay buffer',S.buf]];
+ $('kp').innerHTML=kp.map(k=>`<div><small>${k[0]}</small><b>${k[1]}</b></div>`).join('');
+ const f=H.succ.slice(0,10),l=H.succ.slice(-10),fr=H.rew.slice(0,10),lr=H.rew.slice(-10);
+ $('cmp').innerHTML=n<2?'Run episodes to compare first vs latest.':`First ${f.length} eps: <b>${(avg(f)*100).toFixed(0)}%</b> success, avg reward ${avg(fr).toFixed(1)}<br>Latest ${l.length} eps: <b>${(avg(l)*100).toFixed(0)}%</b> success, avg reward ${avg(lr).toFixed(1)}`;
+ $('strip').innerHTML=`<span>Episode <b>${S.ep}</b></span><span>Phase <b>${S.ph==='run'?S.pl.w[S.wi].t:'idle'}</b></span><span>Step reward <b>${S.stepR.toFixed(2)}</b></span><span>Episode reward <b>${S.epR.toFixed(1)}</b></span><span>Sim time <b>${S.t.toFixed(1)}s</b></span><span>${S.run?'RUNNING':'PAUSED/STOPPED'}</span>`;
+ $('chip').textContent=`Ep ${S.ep} · ${n?(H.ok/n*100).toFixed(0):0}% success`;$('tp').style.width=Math.min(100,S.trainEps/1.5)+'%';$('tpv').textContent=S.trainEps+' eps'+(S.training?'':' (frozen)');
+ const c=$('ent').getContext('2d'),s=0.05+al*0.5;c.clearRect(0,0,220,90);c.strokeStyle='#35a7ff';c.lineWidth=2;c.beginPath();for(let x=0;x<=220;x++){const z=(x-110)/110,y=80-70*Math.exp(-z*z/(2*s*s))*Math.min(1,0.25/s+0.3);x?c.lineTo(x,y):c.moveTo(x,y)}c.stroke();c.fillStyle='#ffb02e';for(let i=0;i<14;i++){const z=Math.sin(i*12.9+S.t*0.9)*Math.min(1,s*1.6);c.fillRect(110+z*110,82,3,3)}c.fillStyle='#8497ab';c.font='10px sans-serif';c.fillText('α = '+al.toFixed(2)+'  action σ ≈ '+s.toFixed(2),6,12)}
+function renderLog(){$('log').innerHTML=S.log.map(l=>`<div class="${l.k}"><span>${l.t}</span> ${l.m}</div>`).join('')}
+let last=performance.now(),acc=0;
+function loop(t){const dt=Math.min(0.1,(t-last)/1000);last=t;if(S.run){acc+=dt*S.speed;let n=0;while(acc>=DT&&n++<12){step();acc-=DT}}scene();ui();if(logD){renderLog();logD=false}if(chD){charts();chD=false}requestAnimationFrame(loop)}
+/* ---------- events ---------- */
+$('bS').onclick=()=>{if(!S.run){S.run=true;lg('Simulation started')}};
+$('bP').onclick=()=>{if(S.run){S.run=false;lg('Simulation paused')}};
+$('bR').onclick=()=>{init();$('ck').value=''};
+$('bN').onclick=()=>skip();
+$('bF').onclick=()=>{$('tr').checked=S.training=true;lg('Fast-training 25 episodes…');for(let i=0;i<25;i++)skip();lg('Fast-training done. Policy competence now '+(skill()*100).toFixed(0)+'%')};
+$('sp').oninput=e=>{S.speed=+e.target.value;$('spv').textContent=S.speed.toFixed(2).replace(/0$/,'')+'×'};
+$('tr').onchange=e=>S.training=e.target.checked;
+$('ck').onchange=e=>{if(e.target.value!==''){S.trainEps=+e.target.value;$('tr').checked=S.training=false;lg('Loaded policy checkpoint ('+S.trainEps+' training episodes); training OFF')}};
+$('bO').onclick=()=>{const c=$('sc').value||CN[Math.random()*3|0];if(entryClear())spawn(-2.95,c);else S.sq.push(c);lg('Object spawned ('+c+')')};
+$('bG').onclick=()=>{$('mb').innerHTML=GUIDE;modal.hidden=false};
+$('bRp').onclick=()=>{const n=H.ok+H.bad,f=H.fails;$('mb').innerHTML=`<h3>End-of-Simulation Report</h3><p><i>Computed from this simulation run (SAC-inspired demo, not MATLAB data).</i></p><ul><li>Objects processed (episodes): <b>${n}</b></li><li>Successful placements: <b>${H.ok}</b> (red ${S.bin.red}, green ${S.bin.green}, blue ${S.bin.blue} in bins now)</li><li>Failures: <b>${H.bad}</b> – collisions ${f.collision}, dropped ${f.drop}, grasp misses ${f.grasp}, missed bin ${f.miss}</li><li>Success rate: <b>${n?(H.ok/n*100).toFixed(1):0}%</b></li><li>Average reward: <b>${n?avg(H.rew).toFixed(1):'–'}</b></li><li>Average completion time: <b>${n?avg(H.time).toFixed(1):'–'} s</b></li><li>First 10 episodes success: ${(avg(H.succ.slice(0,10))*100).toFixed(0)}% → latest 10: ${(avg(H.succ.slice(-10))*100).toFixed(0)}%</li><li>Replay buffer: ${S.buf}/${BUFMAX} · training episodes: ${S.trainEps}</li></ul>`;modal.hidden=false};
+const GUIDE=`<h3>Guide &amp; Explanation</h3>
+<h4>1. What this is</h4><p>An interactive industrial pick-and-place cell. The arm detects coloured cubes on a conveyor, picks each one and sorts it into the matching bin. It is a <b>SAC-inspired educational simulation</b>: the arm follows a scripted inverse-kinematics policy whose precision (lift height, alignment, release accuracy) improves as a “competence” value grows with training episodes. No neural network is trained in your browser, and nothing here was run in MATLAB/Simulink.</p>
+<h4>2. SAC architecture</h4>
+<svg viewBox="0 0 620 235" font-family="sans-serif" font-size="10" fill="#d7e0ea"><defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8z" fill="#35a7ff"/></marker></defs>
+<g fill="#1c2530" stroke="#35a7ff"><rect x="10" y="80" width="130" height="70" rx="6"/><rect x="230" y="8" width="140" height="52" rx="6"/><rect x="230" y="90" width="140" height="48" rx="6"/><rect x="230" y="170" width="140" height="52" rx="6"/><rect x="430" y="170" width="170" height="52" rx="6"/><rect x="430" y="8" width="170" height="52" rx="6"/></g>
+<g fill="none" stroke="#35a7ff" marker-end="url(#ar)"><path d="M75 80V25H230"/><path d="M140 95H185V45H230"/><path d="M140 125H230"/><path d="M300 138V170"/><path d="M430 196H370"/><path d="M230 196H210V55H230"/><path d="M430 34H370"/></g>
+<g text-anchor="middle"><text x="75" y="112">ENVIRONMENT</text><text x="75" y="126">arm + conveyor</text><text x="300" y="30">ACTOR π(a|s)</text><text x="300" y="46">outputs joint cmds</text><text x="300" y="112">REPLAY BUFFER</text><text x="300" y="127">(s, a, r, s′)</text><text x="300" y="192">TWIN CRITICS</text><text x="300" y="207">Q1(s,a)  Q2(s,a)</text><text x="515" y="192">TARGET CRITICS Q1′ Q2′</text><text x="515" y="207">soft update τ</text><text x="515" y="30">TEMPERATURE α</text><text x="515" y="46">entropy bonus</text></g>
+<g fill="#8497ab"><text x="95" y="20">action a</text><text x="150" y="88">state s</text><text x="160" y="140">s,a,r,s′</text><text x="305" y="158">mini-batch</text><text x="378" y="212">y = r+γ(min Q′−α log π)</text><text x="150" y="150">Q gradient →</text></g></svg>
+<p><b>Actor</b>: maps state to a distribution over continuous joint/gripper commands. <b>Twin critics</b>: Q1, Q2 score actions; the smaller value is used to avoid over-estimation. <b>Target networks</b>: slowly-updated copies (τ = 0.005) that keep the learning target stable. <b>Replay buffer</b>: stores past (s,a,r,s′) so training re-uses experience. <b>α</b>: weights the entropy bonus – high α explores, low α exploits.</p>
+<h4>3. How the arm operates</h4><p>Detect object → reach above it → descend and align → close gripper → lift → retract → rotate base towards the bin (passing over the obstacle) → extend above bin → lower → release → raise → return home. Positions are interpolated smoothly and converted to joints J2–J4 by inverse kinematics; J1 rotates the whole arm (see top-view inset). An untrained policy lifts too low (collisions), misaligns, drops or misses bins.</p>
+<h4>4. RL basics (simple)</h4><ul><li><b>RL</b>: an agent learns by trial and error to maximise total reward.</li><li><b>SAC</b>: an off-policy actor-critic method that maximises reward <i>and</i> policy entropy; sample-efficient and stable for continuous control, which suits arms.</li><li><b>State</b> (18 values): 4 joint angles, 4 velocities, object position, bin position, end-effector position, gripper state.</li><li><b>Action</b>: 4 joint-movement commands + 1 gripper command, each in [−1, 1].</li><li><b>Reward</b>: + for moving closer to object/bin, +10 grasp, +50 placement, −0.005/step and action-size penalty, −50 collision, −30 drop, −20 failed grasp, −10 missed bin.</li><li><b>Improvement</b>: rewards from experience update the critics, then the actor; α shrinks so behaviour becomes precise.</li></ul>
+<h4>5. Graphs</h4><ul><li><b>Episode reward</b>: total reward per episode (+ 10-episode average).</li><li><b>Success rate</b>: share of episodes that ended with a correct placement.</li><li><b>Critic loss</b>: illustrative curve of the TD error shrinking as critics learn (not from a real network).</li><li><b>Completion time</b>: seconds per episode; falls as motion becomes confident.</li><li><b>Cumulative successes</b>: running count of correct placements.</li></ul>
+<h4>6. Metrics</h4><p>Total episodes, successful/failed placements, success % = successes ÷ episodes, average reward and time over all episodes, collisions with the barrier, replay buffer size (one transition stored every 3 simulation steps; capacity 20,000).</p>
+<h4>7. Assumptions &amp; limitations</h4><ul><li>No real SAC training or neural networks; scripted IK policy + competence parameter.</li><li>Critic loss, Q1/Q2 and α are illustrative parametric curves; outcomes, rewards, times and counts come from the simulated events.</li><li>2.5D side view with planar arm links plus base yaw; simplified physics, no friction or dynamics.</li><li>Object colour is given (no vision model); one object per episode; rewards are hand-tuned.</li><li>Not generated by MATLAB or Simulink.</li></ul>
+<h4>8. Presenting to your faculty</h4><ol><li>State clearly: “SAC-inspired demonstration, as agreed – not MATLAB output.”</li><li>Load <i>Initial policy</i>, press START and point out collisions/drops and low success.</li><li>Press Fast-train 25 (or switch to <i>Converged</i>) and show the graphs, success rate and lower α.</li><li>Move the α slider (untick auto-tune) to explain exploration vs exploitation.</li><li>Walk through the SAC diagram and finish with the End-of-Simulation Report.</li></ol>`;
+init();requestAnimationFrame(loop);
+</script></body></html>
